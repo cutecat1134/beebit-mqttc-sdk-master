@@ -2091,14 +2091,17 @@ static int MQTTAsync_cleanSession(Clients* client)
 	return rc;
 }
 
-
+static void ttt(MQTTAsync_message *message){
+printf("%s",message->payload);
+}
 static int MQTTAsync_deliverMessage(MQTTAsyncs* m, char* topicName, size_t topicLen, MQTTAsync_message* mm)
 {
 	int rc;
-
+	
 	Log(TRACE_MIN, -1, "Calling messageArrived for client %s, queue depth %d",
 					m->c->clientID, m->c->messageQueue->count);
 	rc = (*(m->ma))(m->context, topicName, (int)topicLen, mm);
+	
 	/* if 0 (false) is returned by the callback then it failed, so we don't remove the message from
 	 * the queue, and it will be retried later.  If 1 is returned then the message data may have been freed,
 	 * so we must be careful how we use it.
@@ -2111,9 +2114,10 @@ void Protocol_processPublication(Publish* publish, Clients* client)
 {
 	MQTTAsync_message* mm = NULL;
 	int rc = 0;
-
+	
 	FUNC_ENTRY;
 	mm = malloc(sizeof(MQTTAsync_message));
+
 
 	/* If the message is QoS 2, then we have already stored the incoming payload
 	 * in an allocated buffer, so we don't need to copy again.
@@ -2124,11 +2128,34 @@ void Protocol_processPublication(Publish* publish, Clients* client)
 	{
 		mm->payload = malloc(publish->payloadlen);
 		memcpy(mm->payload, publish->payload, publish->payloadlen);
+		
 	}
-
+	
 	mm->payloadlen = publish->payloadlen;
 	mm->qos = publish->header.bits.qos;
 	mm->retained = publish->header.bits.retain;
+	
+
+
+	char* sub_ct_buffer;
+	int multiplier = 1 ;
+	int number = 1;
+	int value = 0;
+	int length=0;
+	unsigned char* sub_pt_buffer = NULL;
+
+	sub_ct_buffer=mm->payload;
+	length=cpabe_dec("/home/wei/Desktop/beebit-mqttc-sdk-master/cpabe_publickey","/home/wei/Desktop/beebit-mqttc-sdk-master/cpabe_secretkey",sub_ct_buffer, &sub_pt_buffer);
+	
+	*((char*)(sub_pt_buffer+mm->payloadlen))='\0';
+	//printf("789\n");		
+	//printf("%s",sub_pt_buffer);	
+	
+	mm->payload=sub_pt_buffer;
+	mm->payloadlen=length;		
+
+
+
 	if (publish->header.bits.qos == 2)
 		mm->dup = 0;  /* ensure that a QoS2 message is not passed to the application with dup = 1 */
 	else
@@ -2149,7 +2176,7 @@ void Protocol_processPublication(Publish* publish, Clients* client)
 				rc = MQTTAsync_deliverMessage(m, publish->topic, publish->topiclen, mm);
 		}
 	}
-
+	
 	if (rc == 0) /* if message was not delivered, queue it up */
 	{
 		qEntry* qe = malloc(sizeof(qEntry));
@@ -2162,6 +2189,7 @@ void Protocol_processPublication(Publish* publish, Clients* client)
 			MQTTPersistence_persistQueueEntry(client, (MQTTPersistence_qEntry*)qe);
 #endif
 	}
+	
 	publish->topic = NULL;
 	FUNC_EXIT;
 }
@@ -2725,9 +2753,10 @@ int MQTTAsync_send(MQTTAsync handle, const char* destinationName, int payloadlen
 	
 	int length=0;
 	int bee_encodelen=0;
-	length= cpabe_enc("/home/pi/Desktop/beebit-mqttc-sdk-master/cpabe_publickey", bee_buffer, "jackie", &bee_buf);
-	printf(bee_buf);
-	payload=bee_buf;
+	length= cpabe_enc("/home/wei/Desktop/beebit-mqttc-sdk-master/cpabe_publickey", bee_buffer, "jackie", &bee_buf);
+	printf("%u",bee_buf);
+	payload=bee_buf; 
+	payloadlen=length;
 	pub->command.details.pub.destinationName = MQTTStrdup(destinationName);
 	pub->command.details.pub.payloadlen = payloadlen;
 	pub->command.details.pub.payload = malloc(payloadlen);
