@@ -25,10 +25,10 @@
 #include <windows.h>
 #endif
 
-#define ADDRESS     "tcp://iot.eclipse.org:1883"
+#define ADDRESS     "tcp://broker.hivemq.com:1883"
 #define CLIENTID    "ExampleClientPub"
 #define TOPIC       "au"
-#define PAYLOAD     "Hello World!"
+#define PAYLOAD     "Hello 1234567"
 #define QOS         1
 #define TIMEOUT     10000L
 
@@ -119,6 +119,9 @@ int main(int argc, char* argv[])
 {
 	MQTTAsync client;
 	MQTTAsync_connectOptions conn_opts = MQTTAsync_connectOptions_initializer;
+//bee
+	BeebitOptions beebitOpts = BeebitOptions_initializer;
+//bee
 	MQTTAsync_message pubmsg = MQTTAsync_message_initializer;
 	MQTTAsync_token token;
 	int rc;
@@ -132,6 +135,15 @@ int main(int argc, char* argv[])
 	conn_opts.onSuccess = onConnect;
 	conn_opts.onFailure = onConnectFailure;
 	conn_opts.context = client;
+//bee
+	BeebitCPABEOptions cpabeOpts = BeebitCPABEOptions_initializer;
+	beebitOpts.security = AC_CPABE;
+	cpabeOpts.pk = "/root/beebit-mqttc-sdk/cpabe_publickey";
+	cpabeOpts.ap = "jackie";
+	beebitOpts.opts = &cpabeOpts;
+	conn_opts.beebit = &beebitOpts;
+
+//bee
 	if ((rc = MQTTAsync_connect(client, &conn_opts)) != MQTTASYNC_SUCCESS)
 	{
 		printf("Failed to start connect, return code %d\n", rc);

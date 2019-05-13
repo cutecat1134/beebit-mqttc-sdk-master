@@ -114,9 +114,10 @@
   #define DLLImport extern
   #define DLLExport __attribute__ ((visibility ("default")))
 #endif
-///bee
 
+/* beebit-mqttc-sdk */
 #include "beebit.h"
+
 #include <stdio.h>
 /// @endcond
 
@@ -632,8 +633,7 @@ typedef struct
 	MQTTClient_SSLOptions* ssl;
 
 	/* PROJECT BEEBIT */	
-  	MQTTClient_BeeBitOptions* beebit;
-
+	BeebitOptions* beebit;
 	/**
 	 * The number of entries in the optional serverURIs array. Defaults to 0.
 	 */

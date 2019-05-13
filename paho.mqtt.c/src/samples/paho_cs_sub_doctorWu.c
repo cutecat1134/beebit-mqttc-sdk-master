@@ -53,8 +53,6 @@
 #include <sys/time.h>
 #endif
 
-//bee
-#include "../beebit.h"
 
 volatile int toStop = 0;
 
@@ -119,13 +117,7 @@ int main(int argc, char** argv)
 {
 	MQTTClient client;
 	MQTTClient_connectOptions conn_opts = MQTTClient_connectOptions_initializer;
-	BeebitOptions beebitOpts = BeebitOptions_initializer;
-
-	//based on encryption to choose options (default is CPABE)
-	BeebitCPABEOptions cpabeOpts = BeebitCPABEOptions_initializer;
-	BeebitDUMMYOptions dummyOpts = BeebitDUMMYOptions_initializer;
-	BeebitLOWEROptions lowerOpts = BeebitLOWEROptions_initializer;
-
+	MQTTClient_BeeBitOptions beebit_opts = MQTTClient_BeeBitOptions_initializer;
 	char* topic = NULL;
 	int rc = 0;
 	char url[100];
@@ -153,15 +145,10 @@ int main(int argc, char** argv)
 	conn_opts.cleansession = 1;
 	conn_opts.username = opts.username;
 	conn_opts.password = opts.password;
-	//beebitOpts.security = AC_CPABE;
-	beebitOpts.security = RV_DUMMY;
-	//beebitOpts.security = RV_LOWER;
-	cpabeOpts.pk = "/root/beebit-mqttc-sdk/cpabe_publickey";
-	cpabeOpts.sk = "/root/beebit-mqttc-sdk/cpabe_secretkey";
-	//beebitOpts.opts = &cpabeOpts;
-	beebitOpts.opts = &dummyOpts;
-	//beebitOpts.opts = &lowerOpts;
-	conn_opts.beebit = &beebitOpts;
+	beebit_opts.security = CPABE;
+	beebit_opts.pubKey="/home/lewatin1129/Desktop/pubKey";
+	beebit_opts.secKey="/home/lewatin1129/Desktop/secKey_doctor_Wu";
+	conn_opts.beebit = &beebit_opts;
 
 	myconnect(&client, &conn_opts);
 

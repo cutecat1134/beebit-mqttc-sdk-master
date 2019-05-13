@@ -1,76 +1,66 @@
-#include"beebit.h"
-#include<stdio.h>
-#include<stdlib.h>
-#include<string.h>
-#include<beebitcpabe.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "beebit.h"
 
-#define SIZE 10
+beebit_handler beebit_handler_map[256][2];
 
-int beebit_encode(MQTTClient_BeeBitOptions* beehandle, unsigned char* pt, unsigned char** bee_buf)
-{
-	unsigned char* ct = NULL;
-	int enc_length=0;
-	int rc = 0;
-
-	switch(beehandle->security)
-	{
-		case CPABE:
-			enc_length = cpabe_enc(beehandle->pubKey, pt, beehandle->policy, &ct);
-			if(enc_length == -1){
-				printf("ENC ERROR!\n");
-				return -1;
-			}
-			break;
+void init_beebit() { 
+	int i;
+	for(i=0;i<NOM;i++) {
+		init_sec_map[i]();
 	}
-
-	int encodelen = enc_length;
-
-	unsigned char* bee_len_buf = malloc(sizeof(unsigned char)*4);
-	do
-	{	
-		char d = encodelen % 128;
-              	encodelen /= 128;
-              	if(encodelen > 0)
-              	{
-              		d |= 0x80;
-              	}
-              	bee_len_buf[rc++] = d;
-	} while (encodelen > 0);
-
-	unsigned char* bee_buf_temp = malloc(sizeof(unsigned char)*(rc + enc_length));	
-	switch(beehandle->security)
-	{
-		case CPABE:
-			memcpy(bee_buf_temp,&(beehandle->security), 1);
-			memcpy(bee_buf_temp+1,bee_len_buf, rc);
-			memcpy(bee_buf_temp+rc+1, ct, enc_length);
-			*bee_buf = bee_buf_temp;
-			break;
-	}
-	return enc_length+rc+1;
 }
 
-int beebit_decode(MQTTClient_BeeBitOptions* beehandle, unsigned char* ct, unsigned char** pt)
-{	
-	int multiplier = 1 ;
+int create_mqtt_tts_msg(unsigned char sec, char*payload, int payloadlen, char** dst) {
+
+	int dst_len = 1; // Lenth of fixed header
+	int rc = 0;
+
+	dst_len += payloadlen;
+
+	/* Generate compressed payload length */
+	int payload_len = payloadlen;
+	char* plen_buf = malloc(sizeof(char)*4);
+	do {	
+		char d = payload_len % 128;
+              	payload_len /= 128;
+              	if(payload_len > 0) {
+              		d |= 0x80;
+              	}
+              	plen_buf[rc++] = d;
+	} while (payload_len > 0);
+	dst_len += rc;
+
+	/* Generate MQTT-TTS message */
+	char* dst_buf;	
+	dst_buf = (char*)malloc(sizeof(char)*dst_len);	
+	memcpy(dst_buf, &sec, 1);
+	memcpy(dst_buf+1, plen_buf, rc);
+	memcpy(dst_buf+1+rc, payload, payloadlen);
+	*dst = dst_buf;
+	free(plen_buf);
+	return dst_len;
+}
+
+int get_mqtt_tts_tl_byte_number(char* src) {
+	int multiplier = 1;
 	int number = 1;
-	int value = 0;
-	do
-	{
-		value += (ct[number] &127) * multiplier;
+	int tl = 0;
+	do {
+		tl += (src[number] & 127) * multiplier;
 		multiplier *= 128;
-	 } while((ct[number++] &128) != 0);
-	*(ct+number+value)='\0';
-	int length=0;
-	switch(beehandle->security)
-	{
-		case CPABE:
-			length=cpabe_dec(beehandle->pubKey,beehandle->secKey, ct+number, pt);
-			if(length==-1){
-				printf("DEC FAIL\n");
-				return -1;
-			}
-			break;
-	}
-	return length;
-}	
+	} while((src[number++] &128) != 0);
+	return number;
+}
+
+int get_mqtt_tts_tl(char* src) {
+	int multiplier = 1;
+	int number = 1;
+	int tl = 0;
+	do {
+		tl += (src[number] & 127) * multiplier;
+		multiplier *= 128;
+	} while((src[number++] &128) != 0);
+	return tl;
+}

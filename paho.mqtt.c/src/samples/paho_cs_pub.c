@@ -48,6 +48,8 @@
 #include <sys/time.h>
 #endif
 
+//bee
+#include "../beebit.h"
 
 volatile int toStop = 0;
 
@@ -113,12 +115,17 @@ int messageArrived(void* context, char* topicName, int topicLen, MQTTClient_mess
 	return 1;
 }
 
-int main(int argc, char** argv)
-{
+int main(int argc, char** argv) {
 	MQTTClient client;
 	MQTTClient_connectOptions conn_opts = MQTTClient_connectOptions_initializer;
 	MQTTClient_SSLOptions ssl_opts = MQTTClient_SSLOptions_initializer;
-	MQTTClient_BeeBitOptions beebit_opts = MQTTClient_BeeBitOptions_initializer;
+	BeebitOptions beebitOpts = BeebitOptions_initializer;
+
+	//based on encryption to choose options (default is CPABE)
+	BeebitCPABEOptions cpabeOpts = BeebitCPABEOptions_initializer;
+	BeebitDUMMYOptions dummyOpts = BeebitDUMMYOptions_initializer;
+	BeebitLOWEROptions lowerOpts = BeebitLOWEROptions_initializer;
+
 	char* topic = NULL;
 	char* buffer = NULL;
 	int rc = 0;
@@ -149,14 +156,16 @@ int main(int argc, char** argv)
 	conn_opts.username = opts.username;
 	conn_opts.password = opts.password;
 	ssl_opts.enableServerCertAuth = 0;
-	//bee_opts.//dosomething = 1;
-	beebit_opts.security = CPABE;
-	beebit_opts.pubKey="../../../../cpabe_publickey";
-	beebit_opts.policy="jackie";
-	//bee_opts.policy="jackie and a > 10";
-	beebit_opts.secKey="../../../../cpabe_secretkey";
+	//beebitOpts.security = AC_CPABE;
+	beebitOpts.security = RV_DUMMY;
+	//beebitOpts.security = RV_LOWER;
+	cpabeOpts.pk = "/root/beebit-mqttc-sdk/cpabe_publickey";
+	cpabeOpts.ap = "jackie";
+	//beebitOpts.opts = &cpabeOpts;
+	beebitOpts.opts = &dummyOpts;
+	//beebitOpts.opts = &lowerOpts;
 	conn_opts.ssl = &ssl_opts;
-  	conn_opts.beebit = &beebit_opts;
+  	conn_opts.beebit = &beebitOpts;
 	
 	myconnect(&client, &conn_opts);
 

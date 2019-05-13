@@ -25,7 +25,7 @@
 #include <windows.h>
 #endif
 
-#define ADDRESS     "iot.eclipse.org:1883"
+#define ADDRESS     "tcp://broker.hivemq.com:1883"
 #define CLIENTID    "ExampleClientSub"
 #define TOPIC       "au"
 #define PAYLOAD     "Hello World!"
@@ -136,6 +136,10 @@ int main(int argc, char* argv[])
 {
 	MQTTAsync client;
 	MQTTAsync_connectOptions conn_opts = MQTTAsync_connectOptions_initializer;
+//bee
+        BeebitOptions beebitOpts = BeebitOptions_initializer;
+//bee
+
 	MQTTAsync_disconnectOptions disc_opts = MQTTAsync_disconnectOptions_initializer;
 	MQTTAsync_message pubmsg = MQTTAsync_message_initializer;
 	MQTTAsync_token token;
@@ -151,6 +155,15 @@ int main(int argc, char* argv[])
 	conn_opts.onSuccess = onConnect;
 	conn_opts.onFailure = onConnectFailure;
 	conn_opts.context = client;
+//bee
+        BeebitCPABEOptions cpabeOpts = BeebitCPABEOptions_initializer;
+        beebitOpts.security = AC_CPABE;
+        cpabeOpts.pk = "/root/beebit-mqttc-sdk/cpabe_publickey";
+       	cpabeOpts.sk = "/root/beebit-mqttc-sdk/cpabe_secretkey";
+	beebitOpts.opts = &cpabeOpts;
+	conn_opts.beebit = &beebitOpts;
+//bee
+	
 	if ((rc = MQTTAsync_connect(client, &conn_opts)) != MQTTASYNC_SUCCESS)
 	{
 		printf("Failed to start connect, return code %d\n", rc);

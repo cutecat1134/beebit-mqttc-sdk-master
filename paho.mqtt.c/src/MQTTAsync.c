@@ -58,10 +58,13 @@
 #include "SocketBuffer.h"
 #include "StackTrace.h"
 #include "Heap.h"
-//#include "beebit.h"
 #define URI_TCP "tcp://"
 
 #include "VersionInfo.h"
+
+#if defined(BEE)
+#include "beebit.h"
+#endif
 
 const char *client_timestamp_eye = "MQTTAsyncV3_Timestamp " BUILD_TIMESTAMP;
 const char *client_version_eye = "MQTTAsyncV3_Version " CLIENT_VERSION;
@@ -287,6 +290,15 @@ typedef struct MQTTAsync_struct
 	char* serverURI;
 	int ssl;
 	Clients* c;
+
+#if defined(BEE)
+	int beebit;
+	BeebitOptions* beehandle;
+	//to do MQTTAsync_BeeBitOptions* bee;
+	/*	MQTTAsync_send(MQTTAsync handle)
+		this beebit point to the MQTTAsync_BeeBitOptions to know the security
+	*/
+#endif
 
 	/* "Global", to the client, callback definitions */
 	MQTTAsync_connectionLost* cl;
@@ -2091,17 +2103,13 @@ static int MQTTAsync_cleanSession(Clients* client)
 	return rc;
 }
 
-static void ttt(MQTTAsync_message *message){
-printf("%s",message->payload);
-}
+
 static int MQTTAsync_deliverMessage(MQTTAsyncs* m, char* topicName, size_t topicLen, MQTTAsync_message* mm)
 {
 	int rc;
 	
-	Log(TRACE_MIN, -1, "Calling messageArrived for client %s, queue depth %d",
-					m->c->clientID, m->c->messageQueue->count);
+	Log(TRACE_MIN, -1, "Calling messageArrived for client %s, queue depth %d",m->c->clientID, m->c->messageQueue->count);
 	rc = (*(m->ma))(m->context, topicName, (int)topicLen, mm);
-	
 	/* if 0 (false) is returned by the callback then it failed, so we don't remove the message from
 	 * the queue, and it will be retried later.  If 1 is returned then the message data may have been freed,
 	 * so we must be careful how we use it.
@@ -2114,10 +2122,9 @@ void Protocol_processPublication(Publish* publish, Clients* client)
 {
 	MQTTAsync_message* mm = NULL;
 	int rc = 0;
-	
+
 	FUNC_ENTRY;
 	mm = malloc(sizeof(MQTTAsync_message));
-
 
 	/* If the message is QoS 2, then we have already stored the incoming payload
 	 * in an allocated buffer, so we don't need to copy again.
@@ -2128,34 +2135,10 @@ void Protocol_processPublication(Publish* publish, Clients* client)
 	{
 		mm->payload = malloc(publish->payloadlen);
 		memcpy(mm->payload, publish->payload, publish->payloadlen);
-		
 	}
-	
 	mm->payloadlen = publish->payloadlen;
 	mm->qos = publish->header.bits.qos;
 	mm->retained = publish->header.bits.retain;
-	
-
-
-	char* sub_ct_buffer;
-	int multiplier = 1 ;
-	int number = 1;
-	int value = 0;
-	int length=0;
-	unsigned char* sub_pt_buffer = NULL;
-
-	sub_ct_buffer=mm->payload;
-	length=cpabe_dec("/home/wei/Desktop/beebit-mqttc-sdk-master/cpabe_publickey","/home/wei/Desktop/beebit-mqttc-sdk-master/cpabe_secretkey",sub_ct_buffer, &sub_pt_buffer);
-	
-	*((char*)(sub_pt_buffer+mm->payloadlen))='\0';
-	//printf("789\n");		
-	//printf("%s",sub_pt_buffer);	
-	
-	mm->payload=sub_pt_buffer;
-	mm->payloadlen=length;		
-
-
-
 	if (publish->header.bits.qos == 2)
 		mm->dup = 0;  /* ensure that a QoS2 message is not passed to the application with dup = 1 */
 	else
@@ -2172,11 +2155,35 @@ void Protocol_processPublication(Publish* publish, Clients* client)
 		{
 			MQTTAsyncs* m = (MQTTAsyncs*)(found->content);
 
+#if defined(BEE)
+			int decfail = 0;
+			if(m->beebit!=NULL){
+				if(m->beebit==1){
+					char* src = NULL;
+					char* dst = NULL;
+					src = mm->payload;
+					int src_len = mm->payloadlen;
+					int dec_length = 0;
+					dec_length=beebit_handler_map[m->beehandle->security][DECODE](m->beehandle,src,src_len,&dst);
+					if(dec_length != -1){
+						*((char*)(dst + dec_length))='\0';	
+					mm->payload=dst;
+					mm->payloadlen=dec_length;
+        				} else {
+						decfail = 1;
+						mm->payload="\n";
+        				}
+				}
+			}
+#endif
+
 			if (m->ma)
+			{
 				rc = MQTTAsync_deliverMessage(m, publish->topic, publish->topiclen, mm);
+			}
 		}
 	}
-	
+
 	if (rc == 0) /* if message was not delivered, queue it up */
 	{
 		qEntry* qe = malloc(sizeof(qEntry));
@@ -2189,7 +2196,6 @@ void Protocol_processPublication(Publish* publish, Clients* client)
 			MQTTPersistence_persistQueueEntry(client, (MQTTPersistence_qEntry*)qe);
 #endif
 	}
-	
 	publish->topic = NULL;
 	FUNC_EXIT;
 }
@@ -2371,6 +2377,18 @@ int MQTTAsync_connect(MQTTAsync handle, const MQTTAsync_connectOptions* options)
 	}
 #endif
 
+#if defined(BEE)
+	if (options->struct_version != 0 && options->beebit) /* check validity of BEE options structure */
+	{
+		if (strncmp(options->beebit->struct_id, "BEEBIT", 6) != 0 || options->beebit->struct_version != 0)
+		{
+			rc = MQTTASYNC_BEEBIT_NOT_SUPPORTED;
+			goto exit;
+		}
+	}
+
+#endif
+
 	m->c->username = options->username;
 	m->c->password = options->password;
 	if (options->password)
@@ -2380,7 +2398,16 @@ int MQTTAsync_connect(MQTTAsync handle, const MQTTAsync_connectOptions* options)
 		m->c->password = options->binarypwd.data;
 		m->c->passwordlen = options->binarypwd.len;
 	}
+#if defined(BEE)
 
+		if(options->beebit != NULL){
+			//if (options->bee->dosomething == 1)
+			//{
+				m->beehandle=options->beebit;				
+				m->beebit = 1;
+			//}
+		}
+#endif
 	m->c->retryInterval = options->retryInterval;
 	m->shouldBeConnected = 1;
 
@@ -2747,16 +2774,34 @@ int MQTTAsync_send(MQTTAsync handle, const char* destinationName, int payloadlen
 		response->token = pub->command.token;
 	}
 	//printf("123456789");
-		 
-	unsigned char* bee_buffer = "Hello World!";
+	
+#if defined(BEE)
+	if(m->beebit!=NULL){
+  	if(m->beebit == 1)
+  	{
+ 			char* bee_buffer = NULL;
+			bee_buffer=payload;
+			//*((char*)(payload+(payloadlen)))='\0';
+			unsigned char* bee_buf = NULL;
+	int length=0;
+	int bee_encodelen=0;
+	length=beebit_handler_map[m->beehandle->security][ENCODE](m->beehandle, payload, payloadlen, &bee_buf);
+	payload = bee_buf;
+	payloadlen = length;
+	
+  	}
+}
+		
+ #endif 
+/*	unsigned char* bee_buffer = "Hello World!";
 	unsigned char* bee_buf = NULL;
 	
 	int length=0;
 	int bee_encodelen=0;
-	length= cpabe_enc("/home/wei/Desktop/beebit-mqttc-sdk-master/cpabe_publickey", bee_buffer, "jackie", &bee_buf);
-	printf("%u",bee_buf);
-	payload=bee_buf; 
-	payloadlen=length;
+	length= cpabe_enc("/home/pi/Desktop/beebit-mqttc-sdk-master/cpabe_publickey", bee_buffer, "jackie", &bee_buf);
+	printf(bee_buf);
+	payload=bee_buf;
+*/
 	pub->command.details.pub.destinationName = MQTTStrdup(destinationName);
 	pub->command.details.pub.payloadlen = payloadlen;
 	pub->command.details.pub.payload = malloc(payloadlen);
