@@ -18,7 +18,7 @@ cd paho.mqtt.c
 make clean
 make uninstall
 make
-make install
+(sudo) make install
 ~~~
 
 ## Evaluation
