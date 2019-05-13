@@ -34,7 +34,7 @@ hello world
 ~~~
 
 ## How to add a new security mechanism in MQTT-TTS
-Assume we want to add a dummy security mechanism, called RV_LOWER, in which encoder does nothing and decoder juse lower case of data.
+Assume we want to add a dummy security mechanism, called RV_LOWER, in which encoder does nothing and decoder just lower case of data.
 ### Step 1. Revise beebit_extend.h
 1. Redefine constant NOM
 2. Include header file (eg. ~~~#include "beebit_lower.h"~~~)
